@@ -23,11 +23,15 @@ func (c Coordinate) String() string {
 type Direction Coordinate
 
 // define an interface for an abstract graph that can have nodes
-// and edges added to it, can check for the existence of nodes and edges,
-// and can retrieve them
+// and edges added to it, can have them removed, and return lists
+// with all nodes or edges in the graph
 type Graph interface {
 	AddNode(n Node)
 	AddEdge(u, v Node, w float64)
+	RemoveNode(n Node)
+	RemoveEdge(u, v Node)
+	GetNodes() []Node
+	GetEdges() []Edge
 }
 
 // nodes are identified by their grid coordinates
@@ -54,21 +58,61 @@ type Adjancency struct {
 // ID against its position in the list of nodes, and
 // a lookup table of nodes against a list of their adjacencies
 type graphData struct {
-	Nodes       []Node
-	Edges       []Edge
-	nodeLookup  map[Coordinate]int
-	Adjacencies map[Node][]Adjancency
+	Adjacencies map[Node]map[Node]float64
 }
 
 // function to add a node to the graph
 func (g *graphData) AddNode(n Node) {
 	// does the node already exist in the graph?
-	if _, ok := g.nodeLookup[n.ID]; !ok {
-		// no, add it, and add it to the lookup table
-		i := len(g.Nodes)
-		g.Nodes = append(g.Nodes, n)
-		g.nodeLookup[n.ID] = i
+	if _, ok := g.Adjacencies[n]; !ok {
+		// no, add it with no adjacencies
+		g.Adjacencies[n] = make(map[Node]float64)
 	}
+}
+
+// function to remove a node from the graph
+func (g *graphData) RemoveNode(n Node) {
+	// remove all adjancencies to the node
+	// walk all nodes and fetch their neighbors
+	neighbors := make([]Node, 0)
+	for node, adjs := range g.Adjacencies {
+		// is this node a neighbor?
+		if _, ok := adjs[n]; ok {
+			// it is, record that
+			neighbors = append(neighbors, node)
+		}
+	}
+	// remove those adjacencies
+	for _, neighbor := range neighbors {
+		delete(g.Adjacencies[neighbor], n)
+	}
+
+	// remove adjacencies from the node, and its record
+	delete(g.Adjacencies, n)
+}
+
+// function to retrieve a list of nodes from a graph
+func (g *graphData) GetNodes() []Node {
+	// initialize the list
+	nodes := make([]Node, 0)
+	// walk adjacencies, where the keys are the nodes
+	for u, _ := range g.Adjacencies {
+		nodes = append(nodes, u)
+	}
+	return nodes
+}
+
+// function to retrieve a list of edges from a graph
+func (g *graphData) GetEdges() []Edge {
+	// initialize the list
+	edges := make([]Edge, 0)
+	// walk the adjacencies, construct edges
+	for u, _ := range g.Adjacencies {
+		for v, w := range g.Adjacencies[u] {
+			edges = append(edges, Edge{u: u, v: v, weight: w})
+		}
+	}
+	return edges
 }
 
 // define a queue to work on - just a list of nodes
@@ -110,12 +154,12 @@ func (g *graphData) BFS(start, target Node) (Path, int) {
 			break
 		}
 		// go through all the possible neighbors of the current node
-		for _, adj := range g.Adjacencies[current] {
+		for neighbor, _ := range g.Adjacencies[current] {
 			// check if we've already been at this neighbor
-			if _, explored := visited[adj.v]; !explored {
-				visited[adj.v] = true
-				previous[adj.v] = current
-				queue = append(queue, adj.v)
+			if _, explored := visited[neighbor]; !explored {
+				visited[neighbor] = true
+				previous[neighbor] = current
+				queue = append(queue, neighbor)
 			}
 		}
 	}
@@ -148,7 +192,7 @@ func (g *graphData) Dijkstra(start Node) (map[Node]float64, map[Node]Node) {
 	previous := make(map[Node]Node)
 	// for each node, set the distance to infinity and add
 	// it to the queue
-	for _, node := range g.Nodes {
+	for node := range g.Adjacencies {
 		distances[node] = math.Inf(1)
 		queue = append(queue, node)
 	}
@@ -170,16 +214,16 @@ func (g *graphData) Dijkstra(start Node) (map[Node]float64, map[Node]Node) {
 		queue = slices.Delete(queue, min_index, min_index+1)
 
 		// go through all the possible neighbors of the current node
-		for _, adj := range g.Adjacencies[current] {
+		for neighbor, weight := range g.Adjacencies[current] {
 			// calculate the distance from this node to the neighbor
 			// by adding the weight of the edge
-			alternative := distances[current] + float64(adj.weight)
+			alternative := distances[current] + weight
 			// is that a cheaper way to the neighbor?
-			if alternative < distances[adj.v] {
+			if alternative < distances[neighbor] {
 				// yes. update its distance and set this node to be
 				// on the path to it
-				distances[adj.v] = alternative
-				previous[adj.v] = current
+				distances[neighbor] = alternative
+				previous[neighbor] = current
 			}
 		}
 	}
@@ -218,10 +262,7 @@ func (g *graphData) DijkstraTo(start, target Node) (Path, int, float64) {
 // helper to create an empty new graphData structure
 func newGraphData() graphData {
 	return graphData{
-		Nodes:       make([]Node, 0),
-		Edges:       make([]Edge, 0),
-		nodeLookup:  make(map[Coordinate]int),
-		Adjacencies: make(map[Node][]Adjancency),
+		Adjacencies: make(map[Node]map[Node]float64),
 	}
 }
 
@@ -241,18 +282,23 @@ func NewUndirectedGraph() *UndirectedGraph {
 // them both ways, from u to v and from v to u
 func (g *UndirectedGraph) AddEdge(u, v Node, w float64) {
 	// add nodes to graph if they don't exist yet
-	if _, ok := g.nodeLookup[u.ID]; !ok {
+	if _, ok := g.Adjacencies[u]; !ok {
 		g.AddNode(u)
 	}
-	if _, ok := g.nodeLookup[v.ID]; !ok {
+	if _, ok := g.Adjacencies[v]; !ok {
 		g.AddNode(v)
 	}
 
 	// add the edges and adjacencies both ways
-	g.Edges = append(g.Edges, Edge{u: u, v: v, weight: w})
-	g.Adjacencies[u] = append(g.Adjacencies[u], Adjancency{v: v, weight: w})
-	g.Edges = append(g.Edges, Edge{u: v, v: u, weight: w})
-	g.Adjacencies[v] = append(g.Adjacencies[v], Adjancency{v: u, weight: w})
+	g.Adjacencies[u][v] = w
+	g.Adjacencies[v][u] = w
+}
+
+// remove an edge from an undirected graph
+// this removes the edge both ways
+func (g *UndirectedGraph) RemoveEdge(u, v Node) {
+	delete(g.Adjacencies[u], v)
+	delete(g.Adjacencies[v], u)
 }
 
 // DirectedGraph also inherits from graphData
@@ -269,16 +315,20 @@ func NewDirectedGraph() *DirectedGraph {
 // directed graphs add edges only in the indicated direction
 func (g *DirectedGraph) AddEdge(u, v Node, w float64) {
 	// add nodes to graph if they don't exist yet
-	if _, ok := g.nodeLookup[u.ID]; !ok {
+	if _, ok := g.Adjacencies[u]; !ok {
 		g.AddNode(u)
 	}
-	if _, ok := g.nodeLookup[v.ID]; !ok {
+	if _, ok := g.Adjacencies[v]; !ok {
 		g.AddNode(v)
 	}
 
 	// add the edge and adjancency
-	g.Edges = append(g.Edges, Edge{u: u, v: v, weight: w})
-	g.Adjacencies[u] = append(g.Adjacencies[u], Adjancency{v: v, weight: w})
+	g.Adjacencies[u][v] = w
+}
+
+// remove an edge from a directed graph
+func (g *DirectedGraph) RemoveEdge(u, v Node) {
+	delete(g.Adjacencies[u], v)
 }
 
 // read in the maze grid and return an undirected graph as well as the start
