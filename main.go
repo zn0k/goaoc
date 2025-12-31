@@ -1,478 +1,36 @@
-package main
+package graph
 
 import (
 	"fmt"
-	"iter"
-	"maps"
-	"math"
 	"os"
 	"slices"
 	"strings"
 )
 
 // coordinates have X and Y components
-type Coordinate struct {
+type coordinate struct {
 	X, Y int
 }
 
 // they implement Stringer for easy printing
-func (c Coordinate) String() string {
+func (c coordinate) String() string {
 	return fmt.Sprintf("(%d, %d)", c.X, c.Y)
 }
 
 // directions for walking a grid are really just coordinates:
 // {0, 1}, {0, -1}, {1, 0}, {-1, 0}
-type Direction Coordinate
-
-// nodes can be identified by anything that can be used as a key in a map
-type Node[K comparable] struct {
-	ID K
-}
-
-// edges are identified by the nodes they connect,
-// and the weight of the connection
-type Edge[K comparable] struct {
-	u, v   Node[K]
-	weight float64
-}
-
-// an adjacency is defined by the other end point and
-// the edge weight
-type Adjancency[K comparable] struct {
-	v      Node[K]
-	weight float64
-}
-
-// define an interface for an abstract graph
-type Graph[K comparable] interface {
-	AddNode(n Node[K])
-	AddEdge(u, v Node[K], w float64)
-	AddNodesFrom(ns []Node[K])
-	AddEdgesFrom(es []Edge[K])
-	RemoveNode(n Node[K])
-	RemoveEdge(u, v Node[K])
-	RemoveNodesFrom(ns []Node[K])
-	RemoveEdgesFrom(es []Edge[K])
-	Nodes() iter.Seq[Node[K]]
-	Edges() iter.Seq[Edge[K]]
-	Clear()
-	NumberOfNodes() int
-	NumberOfEdges() int
-	Successors(n Node[K]) iter.Seq[Node[K]]
-	Predecessors(n Node[K]) iter.Seq[Node[K]]
-	Neighbors(n Node[K]) iter.Seq[Node[K]]
-	InDegree(n Node[K]) int
-	OutDegree(n Node[K]) int
-	Degree(n Node[K]) int
-}
-
-// generic data structure for a graph. it's a simple lookup
-// table for graphs and list of graphs with the weight associated
-// with the edge between the two keys
-type graphData[K comparable] struct {
-	Adjacencies map[Node[K]]map[Node[K]]float64
-}
-
-// function to add a node to the graph
-func (g *graphData[K]) AddNode(n Node[K]) {
-	// does the node already exist in the graph?
-	if _, ok := g.Adjacencies[n]; !ok {
-		// no, add it with no adjacencies
-		g.Adjacencies[n] = make(map[Node[K]]float64)
-	}
-}
-
-// functions to add nodes to the graph from some iter
-func (g *graphData[K]) AddNodesFrom(ns []Node[K]) {
-	for _, n := range ns {
-		g.AddNode(n)
-	}
-}
-
-// function to remove a node from the graph
-func (g *graphData[K]) RemoveNode(n Node[K]) {
-	// remove all adjancencies to the node
-	for node := range g.Adjacencies {
-		delete(g.Adjacencies[node], n)
-	}
-	// remove adjacencies from the node, and with that its record
-	delete(g.Adjacencies, n)
-}
-
-// function to remove ndoes from the graph sourced from some iter
-func (g *graphData[K]) RemoveNodesFrom(ns []Node[K]) {
-	for _, n := range ns {
-		g.RemoveNode(n)
-	}
-}
-
-// remove from an iter of edges
-func (g *graphData[K]) RemoveEdgesFrom(es []Edge[K]) {
-
-}
-
-// function to retrieve an iterator over the nodes of the graph
-func (g *graphData[K]) Nodes() iter.Seq[Node[K]] {
-	return maps.Keys(g.Adjacencies)
-}
-
-// function to retrieve a list of edges from a graph
-func (g *graphData[K]) Edges() iter.Seq[Edge[K]] {
-	// create the iterator
-	return func(yield func(Edge[K]) bool) {
-		// walk the nodes
-		for u := range g.Adjacencies {
-			// walk the node's adjacencies
-			for v, w := range g.Adjacencies[u] {
-				// create the edge
-				edge := Edge[K]{u: u, v: v, weight: w}
-				// and yield it
-				if !yield(edge) {
-					return
-				}
-			}
-		}
-	}
-}
-
-// function to reset a graph by clearing its edges and nodes
-func (g *graphData[K]) Clear() {
-	clear(g.Adjacencies)
-}
-
-// function to return the number of nodes in the graph
-func (g *graphData[K]) NumberOfNodes() int {
-	return len(slices.Collect(g.Nodes()))
-}
-
-// function to return the number of edges in the graph
-func (g *graphData[K]) NumberOfEdges() int {
-	return len(slices.Collect(g.Edges()))
-}
-
-// function to return the successors of a node in the graph
-func (g *graphData[K]) Successors(n Node[K]) iter.Seq[Node[K]] {
-	// create the iterator
-	return func(yield func(Node[K]) bool) {
-		// walk the neighbors of the node
-		for succ := range g.Adjacencies[n] {
-			// and yield it
-			if !yield(succ) {
-				return
-			}
-		}
-	}
-}
-
-// function to return the predecessors of a node in the graph
-func (g *graphData[K]) Predecessors(n Node[K]) iter.Seq[Node[K]] {
-	// create the iterator
-	return func(yield func(Node[K]) bool) {
-		// walk all nodes
-		for node := range g.Adjacencies {
-			// walk the node's neighbors
-			for neigh := range g.Adjacencies[node] {
-				// is it the node we are looking for?
-				if neigh == n {
-					// yield it
-					if !yield(neigh) {
-						return
-					}
-				}
-			}
-		}
-	}
-}
-
-// functions to return the in-degree, out-degree, and its sum
-func (g *graphData[K]) InDegree(n Node[K]) int {
-	return len(slices.Collect(g.Predecessors(n)))
-}
-
-func (g *graphData[K]) OutDegree(n Node[K]) int {
-	return len(slices.Collect(g.Successors(n)))
-}
-
-func (g *graphData[K]) Degree(n Node[K]) int {
-	return g.InDegree(n) + g.OutDegree(n)
-}
-
-// function to return all the neighbors of a node in the graph
-func (g *graphData[K]) Neighbors(n Node[K]) iter.Seq[Node[K]] {
-	// create the iterator
-	return func(yield func(Node[K]) bool) {
-		// combine the successors and predecessors
-		for n := range g.Successors(n) {
-			if !yield(n) {
-				return
-			}
-		}
-		for n := range g.Predecessors(n) {
-			if !yield(n) {
-				return
-			}
-		}
-	}
-}
-
-// define a queue to work on - just a list of nodes
-type Queue[K comparable] []Node[K]
-
-// define a structure to repreesent the ordered path of nodes
-// through a graph
-type Path[K comparable] []Node[K]
-
-// implement a breadth-first search from a start node
-// to a destination node. returns the path, and its length
-func (g *graphData[K]) BFS(start, target Node[K]) (Path[K], int) {
-	// if we're already there...
-	if start == target {
-		return Path[K]{}, 0
-	}
-
-	// create a queue
-	queue := make(Queue[K], 1)
-	// create a map to track which nodes have been explored
-	visited := make(map[Node[K]]bool)
-
-	// mark the starting node as explored
-	visited[start] = true
-	// seed the queue
-	queue[0] = start
-
-	// initialize the path by keeping track of the prior step to each node
-	previous := make(map[Node[K]]Node[K])
-
-	// process while queue isn't empty
-	for len(queue) > 0 {
-		// pop the front of the queue
-		current := queue[0]
-		queue = queue[1:]
-
-		// check if we're at the target
-		if current == target {
-			break
-		}
-		// go through all the possible neighbors of the current node
-		for neighbor, _ := range g.Adjacencies[current] {
-			// check if we've already been at this neighbor
-			if _, explored := visited[neighbor]; !explored {
-				visited[neighbor] = true
-				previous[neighbor] = current
-				queue = append(queue, neighbor)
-			}
-		}
-	}
-
-	// build the path from parent relationships
-	path := make(Path[K], 1)
-	// walk back from the target
-	path[0] = target
-	current := target
-	for current != start {
-		step := previous[current]
-		current = previous[current]
-		path = append(path, step)
-	}
-	// and reverse it
-	slices.Reverse(path)
-
-	// return the path and its length
-	return path, len(path)
-}
-
-type Distances[K comparable] map[Node[K]]float64
-type Paths[K comparable] map[Node[K]]Node[K]
-
-// calculate the shortest path from a given start to
-// all other nodes. return the distances and previous
-// nodes for each node in the graph
-func (g *graphData[K]) Dijkstra(start Node[K]) (Distances[K], Paths[K]) {
-	// initialize the queue and data structures to hold
-	// the distances and prior nodes on the paths
-	queue := make(Queue[K], 0)
-	distances := make(Distances[K])
-	previous := make(Paths[K])
-	// for each node, set the distance to infinity and add
-	// it to the queue
-	for node := range g.Adjacencies {
-		distances[node] = math.Inf(1)
-		queue = append(queue, node)
-	}
-	// distance to the starting node is 0.0
-	distances[start] = 0.0
-
-	// process queue while it isn't empty
-	for len(queue) > 0 {
-		// find the node with the smallest distance still in the queue
-		min_distance := math.Inf(1)
-		min_index := 0
-		for i := range queue {
-			if distances[queue[i]] < min_distance {
-				min_index = i
-			}
-		}
-		// fetch it, and remove it from the queue
-		current := queue[min_index]
-		queue = slices.Delete(queue, min_index, min_index+1)
-
-		// go through all the possible neighbors of the current node
-		for neighbor, weight := range g.Adjacencies[current] {
-			// calculate the distance from this node to the neighbor
-			// by adding the weight of the edge
-			alternative := distances[current] + weight
-			// is that a cheaper way to the neighbor?
-			if alternative < distances[neighbor] {
-				// yes. update its distance and set this node to be
-				// on the path to it
-				distances[neighbor] = alternative
-				previous[neighbor] = current
-			}
-		}
-	}
-
-	return distances, previous
-}
-
-// calculate the shortest path from a given node to a given node
-// returns the path, the length of the path, and the distance cost
-func (g *graphData[K]) DijkstraTo(start, target Node[K]) (Path[K], int, float64) {
-	// calculate the graph distances and paths
-	distances, previous := g.Dijkstra(start)
-
-	// check that the target can be reached from the given start
-	if _, ok := previous[target]; !ok {
-		// it cannot
-		return Path[K]{}, 0, 0.0
-	}
-
-	// build the path from parent relationships
-	path := make(Path[K], 1)
-	// walk back from the target
-	path[0] = target
-	current := target
-	for current != start {
-		step := previous[current]
-		current = previous[current]
-		path = append(path, step)
-	}
-	// and reverse it
-	slices.Reverse(path)
-
-	return path, len(path), distances[target]
-}
-
-// helper to create an empty new graphData structure
-func newGraphData[K comparable]() graphData[K] {
-	return graphData[K]{
-		Adjacencies: make(map[Node[K]]map[Node[K]]float64),
-	}
-}
-
-// UndirectedGraph inherits from graphData
-type UndirectedGraph[K comparable] struct {
-	graphData[K]
-}
-
-// helper to generate a new UndirectedGraph
-func NewUndirectedGraph[K comparable]() *UndirectedGraph[K] {
-	return &UndirectedGraph[K]{
-		graphData: newGraphData[K](),
-	}
-}
-
-// adding new edges to an undirected graphs adds
-// them both ways, from u to v and from v to u
-func (g *UndirectedGraph[K]) AddEdge(u, v Node[K], w float64) {
-	// add nodes to graph if they don't exist yet
-	if _, ok := g.Adjacencies[u]; !ok {
-		g.AddNode(u)
-	}
-	if _, ok := g.Adjacencies[v]; !ok {
-		g.AddNode(v)
-	}
-
-	// add the edges and adjacencies both ways
-	g.Adjacencies[u][v] = w
-	g.Adjacencies[v][u] = w
-}
-
-// add from an iter of edges
-func (g *UndirectedGraph[K]) AddEdgesFrom(es []Edge[K]) {
-	for _, e := range es {
-		g.AddEdge(e.u, e.v, e.weight)
-	}
-}
-
-// remove an edge from an undirected graph
-// this removes the edge both ways
-func (g *UndirectedGraph[K]) RemoveEdge(u, v Node[K]) {
-	delete(g.Adjacencies[u], v)
-	delete(g.Adjacencies[v], u)
-}
-
-// remove edges from an undirected graph using an iter as the source
-func (g *UndirectedGraph[K]) RemoveEdgesFrom(es []Edge[K]) {
-	for _, e := range es {
-		delete(g.Adjacencies[e.u], e.v)
-		delete(g.Adjacencies[e.v], e.u)
-	}
-}
-
-// DirectedGraph also inherits from graphData
-type DirectedGraph[K comparable] struct {
-	graphData[K]
-}
-
-func NewDirectedGraph[K comparable]() *DirectedGraph[K] {
-	return &DirectedGraph[K]{
-		graphData: newGraphData[K](),
-	}
-}
-
-// directed graphs add edges only in the indicated direction
-func (g *DirectedGraph[K]) AddEdge(u, v Node[K], w float64) {
-	// add nodes to graph if they don't exist yet
-	if _, ok := g.Adjacencies[u]; !ok {
-		g.AddNode(u)
-	}
-	if _, ok := g.Adjacencies[v]; !ok {
-		g.AddNode(v)
-	}
-
-	// add the edge and adjancency
-	g.Adjacencies[u][v] = w
-}
-
-// add from an iter of edges
-func (g *DirectedGraph[K]) AddEdgesFrom(es []Edge[K]) {
-	for _, e := range es {
-		g.AddEdge(e.u, e.v, e.weight)
-	}
-}
-
-// remove an edge from a directed graph
-func (g *DirectedGraph[K]) RemoveEdge(u, v Node[K]) {
-	delete(g.Adjacencies[u], v)
-}
-
-// remove edges from an undirected graph using an iter as the source
-func (g *DirectedGraph[K]) RemoveEdgesFrom(es []Edge[K]) {
-	for _, e := range es {
-		delete(g.Adjacencies[e.u], e.v)
-	}
-}
+type Direction coordinate
 
 // read in the maze grid and return an undirected graph as well as the start
 // and end tile on the grid
-func readLines(fname string, directions []Direction) (*UndirectedGraph[Coordinate], Node[Coordinate], Node[Coordinate]) {
+func readLines(fname string, directions []Direction) (*UndirectedGraph[coordinate], Node[coordinate], Node[coordinate]) {
 	buf, err := os.ReadFile(fname)
 	if err != nil {
 		panic(fmt.Sprintf("unable to open %s for reading", fname))
 	}
 
 	// initialize the start and end tiles, and the grid as 2d runes
-	var start, target Coordinate
+	var start, target coordinate
 	var grid [][]rune
 
 	// walk the lines
@@ -483,11 +41,11 @@ func readLines(fname string, directions []Direction) (*UndirectedGraph[Coordinat
 			// check if we're on the start or end tile.
 			// if so, record it, and then turn it into a normal tile
 			if c == 'S' {
-				start = Coordinate{x, y}
+				start = coordinate{x, y}
 				c = '.'
 			}
 			if c == 'T' {
-				target = Coordinate{x, y}
+				target = coordinate{x, y}
 				c = '.'
 			}
 			// build the row
@@ -498,7 +56,7 @@ func readLines(fname string, directions []Direction) (*UndirectedGraph[Coordinat
 	}
 
 	// initialize a new graph
-	g := NewUndirectedGraph[Coordinate]()
+	g := NewUndirectedGraph[coordinate]()
 
 	// walk the grid
 	height, width := len(grid), len(grid[0])
@@ -521,8 +79,8 @@ func readLines(fname string, directions []Direction) (*UndirectedGraph[Coordinat
 				if grid[new_y][new_x] == '.' {
 					// yes. create a node for the current position
 					// and a node for the neighbor
-					u := Node[Coordinate]{Coordinate{x, y}}
-					v := Node[Coordinate]{Coordinate{new_x, new_y}}
+					u := Node[coordinate]{coordinate{x, y}}
+					v := Node[coordinate]{coordinate{new_x, new_y}}
 					// add an edge between them, which also adds the nodes
 					g.AddEdge(u, v, 1.0)
 				}
@@ -530,7 +88,7 @@ func readLines(fname string, directions []Direction) (*UndirectedGraph[Coordinat
 		}
 	}
 
-	return g, Node[Coordinate]{start}, Node[Coordinate]{target}
+	return g, Node[coordinate]{start}, Node[coordinate]{target}
 }
 
 func main() {
@@ -549,6 +107,6 @@ func main() {
 	path, length, _ = g.DijkstraTo(s, t)
 	fmt.Printf("path=%v, length=%d\n", path, length)
 
-	h := NewUndirectedGraph[Coordinate]()
+	h := NewUndirectedGraph[coordinate]()
 	h.AddEdgesFrom(slices.Collect(g.Edges()))
 }
