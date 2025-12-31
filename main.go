@@ -43,16 +43,27 @@ type Adjancency[K comparable] struct {
 	weight float64
 }
 
-// define an interface for an abstract graph that can have nodes
-// and edges added to it, can have them removed, and return iterators
-// over the nodes and edges of the graph
+// define an interface for an abstract graph
 type Graph[K comparable] interface {
 	AddNode(n Node[K])
 	AddEdge(u, v Node[K], w float64)
+	AddNodesFrom(ns []Node[K])
+	AddEdgesFrom(es []Edge[K])
 	RemoveNode(n Node[K])
 	RemoveEdge(u, v Node[K])
+	RemoveNodesFrom(ns []Node[K])
+	RemoveEdgesFrom(es []Edge[K])
 	Nodes() iter.Seq[Node[K]]
 	Edges() iter.Seq[Edge[K]]
+	Clear()
+	NumberOfNodes() int
+	NumberOfEdges() int
+	Successors(n Node[K]) iter.Seq[Node[K]]
+	Predecessors(n Node[K]) iter.Seq[Node[K]]
+	Neighbors(n Node[K]) iter.Seq[Node[K]]
+	InDegree(n Node[K]) int
+	OutDegree(n Node[K]) int
+	Degree(n Node[K]) int
 }
 
 // generic data structure for a graph. it's a simple lookup
@@ -71,6 +82,13 @@ func (g *graphData[K]) AddNode(n Node[K]) {
 	}
 }
 
+// functions to add nodes to the graph from some iter
+func (g *graphData[K]) AddNodesFrom(ns []Node[K]) {
+	for _, n := range ns {
+		g.AddNode(n)
+	}
+}
+
 // function to remove a node from the graph
 func (g *graphData[K]) RemoveNode(n Node[K]) {
 	// remove all adjancencies to the node
@@ -79,6 +97,18 @@ func (g *graphData[K]) RemoveNode(n Node[K]) {
 	}
 	// remove adjacencies from the node, and with that its record
 	delete(g.Adjacencies, n)
+}
+
+// function to remove ndoes from the graph sourced from some iter
+func (g *graphData[K]) RemoveNodesFrom(ns []Node[K]) {
+	for _, n := range ns {
+		g.RemoveNode(n)
+	}
+}
+
+// remove from an iter of edges
+func (g *graphData[K]) RemoveEdgesFrom(es []Edge[K]) {
+
 }
 
 // function to retrieve an iterator over the nodes of the graph
@@ -100,6 +130,86 @@ func (g *graphData[K]) Edges() iter.Seq[Edge[K]] {
 				if !yield(edge) {
 					return
 				}
+			}
+		}
+	}
+}
+
+// function to reset a graph by clearing its edges and nodes
+func (g *graphData[K]) Clear() {
+	clear(g.Adjacencies)
+}
+
+// function to return the number of nodes in the graph
+func (g *graphData[K]) NumberOfNodes() int {
+	return len(slices.Collect(g.Nodes()))
+}
+
+// function to return the number of edges in the graph
+func (g *graphData[K]) NumberOfEdges() int {
+	return len(slices.Collect(g.Edges()))
+}
+
+// function to return the successors of a node in the graph
+func (g *graphData[K]) Successors(n Node[K]) iter.Seq[Node[K]] {
+	// create the iterator
+	return func(yield func(Node[K]) bool) {
+		// walk the neighbors of the node
+		for succ := range g.Adjacencies[n] {
+			// and yield it
+			if !yield(succ) {
+				return
+			}
+		}
+	}
+}
+
+// function to return the predecessors of a node in the graph
+func (g *graphData[K]) Predecessors(n Node[K]) iter.Seq[Node[K]] {
+	// create the iterator
+	return func(yield func(Node[K]) bool) {
+		// walk all nodes
+		for node := range g.Adjacencies {
+			// walk the node's neighbors
+			for neigh := range g.Adjacencies[node] {
+				// is it the node we are looking for?
+				if neigh == n {
+					// yield it
+					if !yield(neigh) {
+						return
+					}
+				}
+			}
+		}
+	}
+}
+
+// functions to return the in-degree, out-degree, and its sum
+func (g *graphData[K]) InDegree(n Node[K]) int {
+	return len(slices.Collect(g.Predecessors(n)))
+}
+
+func (g *graphData[K]) OutDegree(n Node[K]) int {
+	return len(slices.Collect(g.Successors(n)))
+}
+
+func (g *graphData[K]) Degree(n Node[K]) int {
+	return g.InDegree(n) + g.OutDegree(n)
+}
+
+// function to return all the neighbors of a node in the graph
+func (g *graphData[K]) Neighbors(n Node[K]) iter.Seq[Node[K]] {
+	// create the iterator
+	return func(yield func(Node[K]) bool) {
+		// combine the successors and predecessors
+		for n := range g.Successors(n) {
+			if !yield(n) {
+				return
+			}
+		}
+		for n := range g.Predecessors(n) {
+			if !yield(n) {
+				return
 			}
 		}
 	}
@@ -287,11 +397,26 @@ func (g *UndirectedGraph[K]) AddEdge(u, v Node[K], w float64) {
 	g.Adjacencies[v][u] = w
 }
 
+// add from an iter of edges
+func (g *UndirectedGraph[K]) AddEdgesFrom(es []Edge[K]) {
+	for _, e := range es {
+		g.AddEdge(e.u, e.v, e.weight)
+	}
+}
+
 // remove an edge from an undirected graph
 // this removes the edge both ways
 func (g *UndirectedGraph[K]) RemoveEdge(u, v Node[K]) {
 	delete(g.Adjacencies[u], v)
 	delete(g.Adjacencies[v], u)
+}
+
+// remove edges from an undirected graph using an iter as the source
+func (g *UndirectedGraph[K]) RemoveEdgesFrom(es []Edge[K]) {
+	for _, e := range es {
+		delete(g.Adjacencies[e.u], e.v)
+		delete(g.Adjacencies[e.v], e.u)
+	}
 }
 
 // DirectedGraph also inherits from graphData
@@ -319,9 +444,23 @@ func (g *DirectedGraph[K]) AddEdge(u, v Node[K], w float64) {
 	g.Adjacencies[u][v] = w
 }
 
+// add from an iter of edges
+func (g *DirectedGraph[K]) AddEdgesFrom(es []Edge[K]) {
+	for _, e := range es {
+		g.AddEdge(e.u, e.v, e.weight)
+	}
+}
+
 // remove an edge from a directed graph
 func (g *DirectedGraph[K]) RemoveEdge(u, v Node[K]) {
 	delete(g.Adjacencies[u], v)
+}
+
+// remove edges from an undirected graph using an iter as the source
+func (g *DirectedGraph[K]) RemoveEdgesFrom(es []Edge[K]) {
+	for _, e := range es {
+		delete(g.Adjacencies[e.u], e.v)
+	}
 }
 
 // read in the maze grid and return an undirected graph as well as the start
@@ -409,4 +548,7 @@ func main() {
 	// run dijkstra
 	path, length, _ = g.DijkstraTo(s, t)
 	fmt.Printf("path=%v, length=%d\n", path, length)
+
+	h := NewUndirectedGraph[Coordinate]()
+	h.AddEdgesFrom(slices.Collect(g.Edges()))
 }
