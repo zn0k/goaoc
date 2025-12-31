@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"iter"
+	"maps"
 	"math"
 	"os"
 	"slices"
@@ -23,15 +25,15 @@ func (c Coordinate) String() string {
 type Direction Coordinate
 
 // define an interface for an abstract graph that can have nodes
-// and edges added to it, can have them removed, and return lists
-// with all nodes or edges in the graph
+// and edges added to it, can have them removed, and return iterators
+// over the nodes and edges of the graph
 type Graph interface {
 	AddNode(n Node)
 	AddEdge(u, v Node, w float64)
 	RemoveNode(n Node)
 	RemoveEdge(u, v Node)
-	GetNodes() []Node
-	GetEdges() []Edge
+	Nodes() iter.Seq[Node]
+	Edges() iter.Seq[Edge]
 }
 
 // nodes are identified by their grid coordinates
@@ -53,10 +55,9 @@ type Adjancency struct {
 	weight float64
 }
 
-// generic data structure for a graph. contains a list
-// of nodes, a list of edges, a lookup table for the node
-// ID against its position in the list of nodes, and
-// a lookup table of nodes against a list of their adjacencies
+// generic data structure for a graph. it's a simple lookup
+// table for graphs and list of graphs with the weight associated
+// with the edge between the two keys
 type graphData struct {
 	Adjacencies map[Node]map[Node]float64
 }
@@ -73,46 +74,35 @@ func (g *graphData) AddNode(n Node) {
 // function to remove a node from the graph
 func (g *graphData) RemoveNode(n Node) {
 	// remove all adjancencies to the node
-	// walk all nodes and fetch their neighbors
-	neighbors := make([]Node, 0)
-	for node, adjs := range g.Adjacencies {
-		// is this node a neighbor?
-		if _, ok := adjs[n]; ok {
-			// it is, record that
-			neighbors = append(neighbors, node)
-		}
+	for node := range g.Adjacencies {
+		delete(g.Adjacencies[node], n)
 	}
-	// remove those adjacencies
-	for _, neighbor := range neighbors {
-		delete(g.Adjacencies[neighbor], n)
-	}
-
-	// remove adjacencies from the node, and its record
+	// remove adjacencies from the node, and with that its record
 	delete(g.Adjacencies, n)
 }
 
-// function to retrieve a list of nodes from a graph
-func (g *graphData) GetNodes() []Node {
-	// initialize the list
-	nodes := make([]Node, 0)
-	// walk adjacencies, where the keys are the nodes
-	for u, _ := range g.Adjacencies {
-		nodes = append(nodes, u)
-	}
-	return nodes
+// function to retrieve an iterator over the nodes of the graph
+func (g *graphData) Nodes() iter.Seq[Node] {
+	return maps.Keys(g.Adjacencies)
 }
 
 // function to retrieve a list of edges from a graph
-func (g *graphData) GetEdges() []Edge {
-	// initialize the list
-	edges := make([]Edge, 0)
-	// walk the adjacencies, construct edges
-	for u, _ := range g.Adjacencies {
-		for v, w := range g.Adjacencies[u] {
-			edges = append(edges, Edge{u: u, v: v, weight: w})
+func (g *graphData) Edges() iter.Seq[Edge] {
+	// create the iterator
+	return func(yield func(Edge) bool) {
+		// walk the nodes
+		for u := range g.Adjacencies {
+			// walk the node's adjacencies
+			for v, w := range g.Adjacencies[u] {
+				// create the edge
+				edge := Edge{u: u, v: v, weight: w}
+				// and yield it
+				if !yield(edge) {
+					return
+				}
+			}
 		}
 	}
-	return edges
 }
 
 // define a queue to work on - just a list of nodes
