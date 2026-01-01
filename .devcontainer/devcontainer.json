@@ -1,0 +1,31 @@
+{
+    "name": "Go AoC Library",
+    "image": "mcr.microsoft.com/devcontainers/go:1.25-bookworm",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:1": {
+            "configureZshAsDefaultShell": true
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "go.gopath": "/go",
+                "go.lintTool": "golangci-lint",
+                "go.testFlags": ["-v"],
+                "editor.formatOnSave": true,
+                "editor.codeActionsOnSave": {
+                    "source.organizeImports": "always"
+                }
+            },
+            "extensions": [
+                "golang.Go",
+                "76h03.vscode-gcl-quotas",
+                "github.vscode-pull-request-github"
+            ]
+        }
+    },
+    "remoteUser": "vscode",
+    "postCreateCommand": "go version && go mod download"
+}
