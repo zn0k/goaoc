@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"iter"
 	"maps"
 	"slices"
 )
@@ -35,17 +34,18 @@ type Graph[K comparable] interface {
 	RemoveEdge(u, v Node[K])
 	RemoveNodesFrom(ns []Node[K])
 	RemoveEdgesFrom(es []Edge[K])
-	Nodes() iter.Seq[Node[K]]
-	Edges() iter.Seq[Edge[K]]
+	Nodes() []Node[K]
+	Edges() []Edge[K]
 	Clear()
 	NumberOfNodes() int
 	NumberOfEdges() int
-	Successors(n Node[K]) iter.Seq[Node[K]]
-	Predecessors(n Node[K]) iter.Seq[Node[K]]
-	Neighbors(n Node[K]) iter.Seq[Node[K]]
+	Successors(n Node[K]) []Node[K]
+	Predecessors(n Node[K]) []Node[K]
+	Neighbors(n Node[K]) []Node[K]
 	InDegree(n Node[K]) int
 	OutDegree(n Node[K]) int
 	Degree(n Node[K]) int
+	Copy() graphData[K]
 }
 
 // generic data structure for a graph. it's a simple lookup
@@ -89,27 +89,21 @@ func (g *graphData[K]) RemoveNodesFrom(ns []Node[K]) {
 }
 
 // function to retrieve an iterator over the nodes of the graph
-func (g *graphData[K]) Nodes() iter.Seq[Node[K]] {
-	return maps.Keys(g.Adjacencies)
+func (g *graphData[K]) Nodes() []Node[K] {
+	return slices.Collect(maps.Keys(g.Adjacencies))
 }
 
 // function to retrieve a list of edges from a graph
-func (g *graphData[K]) Edges() iter.Seq[Edge[K]] {
-	// create the iterator
-	return func(yield func(Edge[K]) bool) {
-		// walk the nodes
-		for u := range g.Adjacencies {
-			// walk the node's adjacencies
-			for v, w := range g.Adjacencies[u] {
-				// create the edge
-				edge := Edge[K]{u: u, v: v, weight: w}
-				// and yield it
-				if !yield(edge) {
-					return
-				}
-			}
+func (g *graphData[K]) Edges() []Edge[K] {
+	edges := make([]Edge[K], 0)
+	for u := range g.Adjacencies {
+		// walk the node's adjacencies
+		for v, w := range g.Adjacencies[u] {
+			// create the edge
+			edges = append(edges, Edge[K]{u: u, v: v, weight: w})
 		}
 	}
+	return edges
 }
 
 // function to reset a graph by clearing its edges and nodes
@@ -119,55 +113,42 @@ func (g *graphData[K]) Clear() {
 
 // function to return the number of nodes in the graph
 func (g *graphData[K]) NumberOfNodes() int {
-	return len(slices.Collect(g.Nodes()))
+	return len(g.Nodes())
 }
 
 // function to return the number of edges in the graph
 func (g *graphData[K]) NumberOfEdges() int {
-	return len(slices.Collect(g.Edges()))
+	return len(g.Edges())
 }
 
 // function to return the successors of a node in the graph
-func (g *graphData[K]) Successors(n Node[K]) iter.Seq[Node[K]] {
-	// create the iterator
-	return func(yield func(Node[K]) bool) {
-		// walk the neighbors of the node
-		for succ := range g.Adjacencies[n] {
-			// and yield it
-			if !yield(succ) {
-				return
-			}
-		}
-	}
+func (g *graphData[K]) Successors(n Node[K]) []Node[K] {
+	return slices.Collect(maps.Keys(g.Adjacencies[n]))
 }
 
 // function to return the predecessors of a node in the graph
-func (g *graphData[K]) Predecessors(n Node[K]) iter.Seq[Node[K]] {
-	// create the iterator
-	return func(yield func(Node[K]) bool) {
-		// walk all nodes
-		for node := range g.Adjacencies {
-			// walk the node's neighbors
-			for neigh := range g.Adjacencies[node] {
-				// is it the node we are looking for?
-				if neigh == n {
-					// yield it
-					if !yield(neigh) {
-						return
-					}
-				}
+func (g *graphData[K]) Predecessors(n Node[K]) []Node[K] {
+	predecessors := make([]Node[K], 0)
+	// walk all nodes
+	for node := range g.Adjacencies {
+		// walk the node's neighbors
+		for neigh := range g.Adjacencies[node] {
+			// is it the node we are looking for?
+			if neigh == n {
+				predecessors = append(predecessors, node)
 			}
 		}
 	}
+	return predecessors
 }
 
 // functions to return the in-degree, out-degree, and its sum
 func (g *graphData[K]) InDegree(n Node[K]) int {
-	return len(slices.Collect(g.Predecessors(n)))
+	return len(g.Predecessors(n))
 }
 
 func (g *graphData[K]) OutDegree(n Node[K]) int {
-	return len(slices.Collect(g.Successors(n)))
+	return len(g.Successors(n))
 }
 
 func (g *graphData[K]) Degree(n Node[K]) int {
@@ -175,21 +156,37 @@ func (g *graphData[K]) Degree(n Node[K]) int {
 }
 
 // function to return all the neighbors of a node in the graph
-func (g *graphData[K]) Neighbors(n Node[K]) iter.Seq[Node[K]] {
-	// create the iterator
-	return func(yield func(Node[K]) bool) {
-		// combine the successors and predecessors
-		for n := range g.Successors(n) {
-			if !yield(n) {
-				return
-			}
+func (g *graphData[K]) Neighbors(n Node[K]) []Node[K] {
+	return append(g.Successors(n), g.Predecessors(n)...)
+}
+
+// function to deep copy a graph
+func (g *graphData[K]) Copy() *graphData[K] {
+	// create new graph
+	newG := newGraphData[K]()
+	// registry for copied nodes
+	nodesMap := make(map[K]Node[K])
+	// function to either retrieve a copy of a node, or create it
+	getOrCreate := func(id K) Node[K] {
+		if node, ok := nodesMap[id]; ok {
+			return node
 		}
-		for n := range g.Predecessors(n) {
-			if !yield(n) {
-				return
-			}
+		newNode := Node[K]{ID: id}
+		nodesMap[id] = newNode
+		return newNode
+	}
+
+	for n, neighbors := range g.Adjacencies {
+		newNode := getOrCreate(n.ID)
+		if _, ok := newG.Adjacencies[newNode]; !ok {
+			newG.Adjacencies[newNode] = make(map[Node[K]]float64)
+		}
+		for nei, weight := range neighbors {
+			newNeighbor := getOrCreate(nei.ID)
+			newG.Adjacencies[newNode][newNeighbor] = weight
 		}
 	}
+	return &newG
 }
 
 // helper to create an empty new graphData structure

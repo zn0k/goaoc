@@ -1,10 +1,5 @@
 package graph
 
-import (
-	"iter"
-	"slices"
-)
-
 // UndirectedGraph inherits from graphData
 type UndirectedGraph[K comparable] struct {
 	graphData[K]
@@ -58,16 +53,15 @@ func (g *UndirectedGraph[K]) RemoveEdgesFrom(es []Edge[K]) {
 // override Neighbors, Predecessors, and Degrees for UndirectedGraph
 // Neighbors and Predecessors are all the same as Successors, so make
 // the former not double count and the latter cheaper to implement
-func (g *UndirectedGraph[K]) Neighbors(n Node[K]) iter.Seq[Node[K]] {
+func (g *UndirectedGraph[K]) Neighbors(n Node[K]) []Node[K] {
 	return g.Successors(n)
 }
 
-func (g *UndirectedGraph[K]) Predecessors(n Node[K]) iter.Seq[Node[K]] {
+func (g *UndirectedGraph[K]) Predecessors(n Node[K]) []Node[K] {
 	return g.Successors(n)
 }
 
 // and Degrees is just the number of neighbors
 func (g *UndirectedGraph[K]) Degree(n Node[K]) int {
-	neighbors := slices.Collect(g.Neighbors(n))
-	return len(neighbors)
+	return len(g.Neighbors(n))
 }

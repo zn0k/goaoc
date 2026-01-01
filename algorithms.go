@@ -17,7 +17,7 @@ type Path[K comparable] []Node[K]
 func (g *graphData[K]) BFS(start, target Node[K]) (Path[K], int) {
 	// if we're already there...
 	if start == target {
-		return Path[K]{}, 0
+		return Path[K]{target}, 1
 	}
 
 	// create a queue
@@ -52,6 +52,12 @@ func (g *graphData[K]) BFS(start, target Node[K]) (Path[K], int) {
 				queue = append(queue, neighbor)
 			}
 		}
+	}
+
+	// check if the target could in fact be reached
+	if _, ok := previous[target]; !ok {
+		// no, can't get to it, return empty path and zero length
+		return Path[K]{}, 0
 	}
 
 	// build the path from parent relationships
@@ -91,6 +97,8 @@ func (g *graphData[K]) Dijkstra(start Node[K]) (Distances[K], Paths[K]) {
 	}
 	// distance to the starting node is 0.0
 	distances[start] = 0.0
+	// can get to self
+	previous[start] = start
 
 	// process queue while it isn't empty
 	for len(queue) > 0 {
@@ -133,7 +141,7 @@ func (g *graphData[K]) DijkstraTo(start, target Node[K]) (Path[K], int, float64)
 	// check that the target can be reached from the given start
 	if _, ok := previous[target]; !ok {
 		// it cannot
-		return Path[K]{}, 0, 0.0
+		return Path[K]{}, 0, math.Inf(1)
 	}
 
 	// build the path from parent relationships

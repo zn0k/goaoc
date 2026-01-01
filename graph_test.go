@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"iter"
 	"slices"
 	"testing"
 )
@@ -44,6 +43,28 @@ func TestUndirectedGraph_AddNodesAndEdges(t *testing.T) {
 		if n != 4 {
 			t.Errorf("Expected 4 edges, got %d", n)
 		}
+
+		// add a duplicate edge, with a different weight
+		g.AddEdge(u, v, 20.0)
+		// edge count should still be the same
+		// check edge count
+		n = g.NumberOfEdges()
+		if n != 4 {
+			t.Errorf("Expected 4 edges after adding duplicate, got %d", n)
+		}
+
+		// and the weight should be the new value
+		if g.Adjacencies[u][v] != 20.0 {
+			t.Errorf("Expected new edge weight %f, got %f", 20.0, g.Adjacencies[u][v])
+		}
+
+		// add a duplicate node
+		g.AddNode(u)
+		// node count should remain unchanged
+		n = g.NumberOfNodes()
+		if n != 5 {
+			t.Errorf("Expected 5 nodes, got %d", n)
+		}
 	})
 }
 
@@ -67,6 +88,14 @@ func TestUndirectedGraph_RemoveNodesAndEdges(t *testing.T) {
 			t.Errorf("Expected 5 nodes, got %d", n)
 		}
 
+		// remove a node that doesn't exist
+		// should not panic, node count should remain the same
+		g.RemoveNode(z)
+		n = g.NumberOfNodes()
+		if n != 5 {
+			t.Errorf("Expected 5 nodes, got %d", n)
+		}
+
 		// remove y as a node
 		g.RemoveNode(y)
 		// remove x and w from a list
@@ -83,6 +112,13 @@ func TestUndirectedGraph_RemoveNodesAndEdges(t *testing.T) {
 		g.AddEdge(y, z, 1.0)
 
 		// check edge count
+		n = g.NumberOfEdges()
+		if n != 6 {
+			t.Errorf("Expected 6 edges, got %d", n)
+		}
+
+		// remove an edge that doesn't exist, shouldn't affect edge count
+		g.RemoveEdge(z, u)
 		n = g.NumberOfEdges()
 		if n != 6 {
 			t.Errorf("Expected 6 edges, got %d", n)
@@ -177,31 +213,36 @@ func TestUndirectedGraph_Neighbors(t *testing.T) {
 
 		// check for the two specific neighbors
 		// sucessors and predecessors should be the same
-		check := func(ns iter.Seq[Node[int]]) bool {
-			first := false
-			second := false
-			for n := range ns {
-				if n == v {
-					first = true
-				}
-				if n == w {
-					second = true
-				}
-			}
-			return first && second
-		}
 		expected := []Node[int]{v, w}
 		ns := g.Neighbors(u)
-		if !check(ns) {
+		if !slices.Contains(ns, v) && slices.Contains(ns, w) {
 			t.Errorf("Neighbors function expected %v, got %v", expected, ns)
 		}
 		ns = g.Successors(u)
-		if !check(ns) {
+		if !slices.Contains(ns, v) && slices.Contains(ns, w) {
 			t.Errorf("Successors function expected %v, got %v", expected, ns)
 		}
 		ns = g.Predecessors(u)
-		if !check(ns) {
+		if !slices.Contains(ns, v) && slices.Contains(ns, w) {
 			t.Errorf("Predecessors function expected %v, got %v", expected, ns)
+		}
+	})
+}
+
+func TestUndirectedGraph_Loop(t *testing.T) {
+	t.Run("Undirected graph self loop", func(t *testing.T) {
+		// create an undirected graph
+		g := NewUndirectedGraph[int]()
+		u, _, _, _, _, _ := getNodes()
+
+		// add an edge from a node to itself
+		g.AddEdge(u, u, 1.0)
+		// that should result in one edges, and a degree of 1
+		if len(g.Adjacencies[u]) != 1 {
+			t.Errorf("Self loop for directed graph expected 1 adjancency, got %d", len(g.Adjacencies[u]))
+		}
+		if g.Degree(u) != 1 {
+			t.Errorf("Self loop for directed graph degree of 1, got %d", g.Degree(u))
 		}
 	})
 }
@@ -233,6 +274,28 @@ func TestDirectedGraph_AddNodesAndEdges(t *testing.T) {
 		if n != 2 {
 			t.Errorf("Expected 2 edges, got %d", n)
 		}
+
+		// add a duplicate edge, with a different weight
+		g.AddEdge(u, v, 20.0)
+		// edge count should still be the same
+		// check edge count
+		n = g.NumberOfEdges()
+		if n != 2 {
+			t.Errorf("Expected 2 edges after adding duplicate, got %d", n)
+		}
+
+		// and the weight should be the new value
+		if g.Adjacencies[u][v] != 20.0 {
+			t.Errorf("Expected new edge weight %f, got %f", 20.0, g.Adjacencies[u][v])
+		}
+
+		// add a duplicate node
+		g.AddNode(u)
+		// node count should remain unchanged
+		n = g.NumberOfNodes()
+		if n != 5 {
+			t.Errorf("Expected 5 nodes, got %d", n)
+		}
 	})
 }
 
@@ -252,6 +315,14 @@ func TestDirectedGraph_RemoveNodesAndEdges(t *testing.T) {
 
 		// check node count
 		n := g.NumberOfNodes()
+		if n != 5 {
+			t.Errorf("Expected 5 nodes, got %d", n)
+		}
+
+		// remove a node that doesn't exist
+		// should not panic, node count should remain the same
+		g.RemoveNode(z)
+		n = g.NumberOfNodes()
 		if n != 5 {
 			t.Errorf("Expected 5 nodes, got %d", n)
 		}
@@ -277,6 +348,13 @@ func TestDirectedGraph_RemoveNodesAndEdges(t *testing.T) {
 			t.Errorf("Expected 3 edges, got %d", n)
 		}
 
+		// remove an edge that doesn't exist, shouldn't affect edge count
+		g.RemoveEdge(z, u)
+		n = g.NumberOfEdges()
+		if n != 3 {
+			t.Errorf("Expected 6 edges, got %d", n)
+		}
+
 		// remove edge between w and x
 		g.RemoveEdge(w, x)
 		// and remove y, z from a list
@@ -286,6 +364,18 @@ func TestDirectedGraph_RemoveNodesAndEdges(t *testing.T) {
 		n = g.NumberOfEdges()
 		if n != 1 {
 			t.Errorf("Expected 1 edge, got %d", n)
+		}
+
+		// remove node v
+		g.RemoveNode(v)
+		// check edge count, should be 0
+		n = g.NumberOfEdges()
+		if n != 0 {
+			t.Errorf("Expected 0 edges, got %d", n)
+		}
+		// check that u's adjacency list is empty
+		if len(g.Adjacencies[u]) != 0 {
+			t.Errorf("Expected u's adjacency list to be empty, got length %d", len(g.Adjacencies[u]))
 		}
 	})
 }
@@ -366,35 +456,86 @@ func TestDirectedGraph_Neighbors(t *testing.T) {
 
 		// check for the two specific neighbors
 		// sucessors should be the same
-		check := func(ns iter.Seq[Node[int]]) bool {
-			first := false
-			second := false
-			for n := range ns {
-				if n == v {
-					first = true
-				}
-				if n == w {
-					second = true
-				}
-			}
-			return first && second
-		}
 		expected := []Node[int]{v, w}
 		ns := g.Neighbors(u)
-		if !check(ns) {
+		if !slices.Contains(ns, v) && slices.Contains(ns, w) {
 			t.Errorf("Neighbors function expected %v, got %v", expected, ns)
 		}
 		ns = g.Successors(u)
-		if !check(ns) {
+		if !slices.Contains(ns, v) && slices.Contains(ns, w) {
 			t.Errorf("Successors function expected %v, got %v", expected, ns)
 		}
-		n = len(slices.Collect(g.Predecessors(u)))
+		n = len(g.Predecessors(u))
 		if n != 0 {
 			t.Errorf("Length of predecessors for u was expected to be 0, got %d", n)
 		}
-		n = len(slices.Collect(g.Predecessors(v)))
+		n = len(g.Predecessors(v))
 		if n != 1 {
 			t.Errorf("Length of predecessors for v was expected to be 1, got %d", n)
 		}
 	})
+}
+
+func TestGraphCopy(t *testing.T) {
+	// set up a small graph
+	g := NewUndirectedGraph[string]()
+	u := Node[string]{ID: "A"}
+	v := Node[string]{ID: "B"}
+	g.AddEdge(u, v, 1.0)
+
+	// make a copy of it
+	h := g.Copy()
+
+	// test structural consistency
+	if len(h.Adjacencies) != len(g.Adjacencies) {
+		t.Errorf("Size mismatch: expected %d nodes, got %d", len(g.Adjacencies), len(h.Adjacencies))
+	}
+
+	for oldNode, oldNeighbors := range g.Adjacencies {
+		newNode := Node[string]{ID: oldNode.ID}
+		newNeighbors, exists := h.Adjacencies[newNode]
+		if !exists {
+			t.Fatalf("Node %v missing in copied graph", oldNode.ID)
+		}
+
+		for oldNeighbor, oldWeight := range oldNeighbors {
+			newNeighbor := Node[string]{ID: oldNeighbor.ID}
+			newWeight, weightExists := newNeighbors[newNeighbor]
+			if !weightExists || newWeight != oldWeight {
+				t.Errorf("Edge mismatch for node %s: expected weight %f, got %f",
+					oldNode.ID, oldWeight, newWeight)
+			}
+		}
+	}
+
+	// test referential integrity
+	// in the copy, node A that connects to B must be the same
+	// node A that B connects to
+	// first, retrieve them
+	var copyNodeA, copyNodeB Node[string]
+	for n := range h.Adjacencies {
+		if n.ID == "A" {
+			copyNodeA = n
+		}
+		if n.ID == "B" {
+			copyNodeB = n
+		}
+	}
+	// now check
+	foundA := false
+	for neighbor := range h.Adjacencies[copyNodeB] {
+		if neighbor == copyNodeA {
+			foundA = true
+		}
+	}
+	if !foundA {
+		t.Error("Referential integrity failed")
+	}
+
+	// verify that changing the copy doesn't affect the original
+	// change the weight in the original
+	g.Adjacencies[u][v] = 10.0
+	if h.Adjacencies[u][v] == 10.0 {
+		t.Error("Deep independence failed")
+	}
 }
