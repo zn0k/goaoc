@@ -67,7 +67,7 @@ func (g *UndirectedGraph[K]) Predecessors(n Node[K]) iter.Seq[Node[K]] {
 }
 
 // and Degrees is just the number of neighbors
-func (g *UndirectedGraph[K]) Degrees(n Node[K]) int {
+func (g *UndirectedGraph[K]) Degree(n Node[K]) int {
 	neighbors := slices.Collect(g.Neighbors(n))
 	return len(neighbors)
 }
