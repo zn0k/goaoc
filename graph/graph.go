@@ -41,6 +41,7 @@ type Graph[K comparable] interface {
 	Clear()
 	NumberOfNodes() int
 	NumberOfEdges() int
+	NewNode(obj K) Node[K]
 	Successors(n Node[K]) []Node[K]
 	Predecessors(n Node[K]) []Node[K]
 	Neighbors(n Node[K]) []Node[K]
@@ -55,6 +56,11 @@ type Graph[K comparable] interface {
 // with the edge between the two keys
 type graphData[K comparable] struct {
 	Adjacencies map[Node[K]]map[Node[K]]float64
+}
+
+// function to wrap a new node
+func (g *graphData[K]) NewNode(obj K) Node[K] {
+	return Node[K]{ID: obj}
 }
 
 // function to add a node to the graph

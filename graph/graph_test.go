@@ -16,6 +16,19 @@ func getNodes() (Node[int], Node[int], Node[int], Node[int], Node[int], Node[int
 	return u, v, w, x, y, z
 }
 
+func TestNewNode(t *testing.T) {
+	t.Run("Create new nodes", func(t *testing.T) {
+		// create a new graph
+		g:= NewUndirectedGraph[int]()
+		// get the node
+		node := g.NewNode(2)
+		// check its ID
+		if node.ID != 2 {
+			t.Errorf("Expected node ID to be 2, got %v", node.ID)
+		}
+	})
+}
+
 func TestUndirectedGraph_AddNodesAndEdges(t *testing.T) {
 	t.Run("Undirected graph adding nodes and edges", func(t *testing.T) {
 		// create an undirected graph
