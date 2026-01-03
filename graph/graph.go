@@ -30,6 +30,8 @@ type Graph[K comparable] interface {
 	AddEdge(u, v Node[K], w float64)
 	AddNodesFrom(ns []Node[K])
 	AddEdgesFrom(es []Edge[K])
+	HasNode(n Node[K]) bool
+	HasEdge(u, v Node[K]) bool
 	RemoveNode(n Node[K])
 	RemoveEdge(u, v Node[K])
 	RemoveNodesFrom(ns []Node[K])
@@ -69,6 +71,22 @@ func (g *graphData[K]) AddNodesFrom(ns []Node[K]) {
 	for _, n := range ns {
 		g.AddNode(n)
 	}
+}
+
+// function to check whether the graph has a node
+func (g *graphData[K]) HasNode(u Node[K]) bool {
+	_, ok := g.Adjacencies[u]
+	return ok
+}
+
+// function to check whether the grpah has an edge
+func (g *graphData[K]) HasEdge(u, v Node[K]) bool {
+	_, hasU := g.Adjacencies[u]
+	if !hasU {
+		return false
+	}
+	_, hasV := g.Adjacencies[u][v]
+	return hasV
 }
 
 // function to remove a node from the graph

@@ -32,6 +32,18 @@ func TestUndirectedGraph_AddNodesAndEdges(t *testing.T) {
 		// add an edge from a list
 		g.AddEdgesFrom([]Edge[int]{{x, y, 5.0}})
 
+		// check for node existence
+		ok := g.HasNode(w)
+		if !ok {
+			t.Errorf("Expected graph to have node w, got %t", ok)
+		}
+
+		// check for edge existence
+		ok = g.HasEdge(u, v)
+		if !ok {
+			t.Errorf("Expected graph to have edge between u and v, got %t", ok)
+		}
+
 		// check node count
 		n := g.NumberOfNodes()
 		if n != 5 {
@@ -262,6 +274,18 @@ func TestDirectedGraph_AddNodesAndEdges(t *testing.T) {
 		g.AddNodesFrom([]Node[int]{x, y})
 		// add an edge from a list
 		g.AddEdgesFrom([]Edge[int]{{x, y, 5.0}})
+
+		// check for node existence
+		ok := g.HasNode(w)
+		if !ok {
+			t.Errorf("Expected graph to have node w, got %t", ok)
+		}
+
+		// check for edge existence
+		ok = g.HasEdge(u, v)
+		if !ok {
+			t.Errorf("Expected graph to have edge between u and v, got %t", ok)
+		}
 
 		// check node count
 		n := g.NumberOfNodes()
