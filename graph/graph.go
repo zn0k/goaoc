@@ -1,7 +1,10 @@
 package graph
 
 import (
+	"bufio"
+	"fmt"
 	"maps"
+	"os"
 	"slices"
 )
 
@@ -218,4 +221,20 @@ func newGraphData[K comparable]() graphData[K] {
 	return graphData[K]{
 		Adjacencies: make(map[Node[K]]map[Node[K]]float64),
 	}
+}
+
+// function to export the edge list into a given file
+// this can usually be imported by other graphing libraries
+func (g *graphData[K]) ExportEdgeList(fname string) error {
+	f, err := os.Create(fname)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	writer := bufio.NewWriter(f)
+	for _, e := range g.Edges() {
+		fmt.Fprintf(writer, "'%v' '%v'\n", e.u.ID, e.v.ID)
+	}
+	return writer.Flush()
 }
