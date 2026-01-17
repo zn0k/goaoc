@@ -118,6 +118,7 @@ func (g *graphData[K]) Dijkstra(start Node[K]) (Distances[K], Paths[K]) {
 		for i := range queue {
 			if distances[queue[i]] < min_distance {
 				min_index = i
+				min_distance = distances[queue[i]]
 			}
 		}
 		// fetch it, and remove it from the queue
