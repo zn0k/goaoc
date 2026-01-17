@@ -21,7 +21,7 @@ func TestBFS(t *testing.T) {
 
 	t.Run("BFS algorithm unreachable node", func(t *testing.T) {
 		// check that z is unreachable
-		path_to_z, zl := g.BFS(u, z)
+		path_to_z, zl, _ := g.BFSTo(u, z)
 		if len(path_to_z) != 0 || zl != 0 {
 			t.Errorf("BFS expected zero length path to z, got %d and %d", len(path_to_z), zl)
 		}
@@ -30,7 +30,7 @@ func TestBFS(t *testing.T) {
 
 	t.Run("BFS algorithm shortest path", func(t *testing.T) {
 		// check correct path from u to y
-		path_to_y, yl := g.BFS(u, y)
+		path_to_y, yl, _ := g.BFSTo(u, y)
 		if len(path_to_y) != 5 || yl != 5 {
 			t.Errorf("BFS expected shortest length path to y over 5 nodes, got %d and %d", len(path_to_y), yl)
 		}
@@ -42,7 +42,7 @@ func TestBFS(t *testing.T) {
 	t.Run("BFS algorithm with cyclical graph", func(t *testing.T) {
 		// check correct path from u to y with a cycle present
 		// path is now also shorter
-		path_to_y, yl := g.BFS(u, y)
+		path_to_y, yl, _ := g.BFSTo(u, y)
 		if len(path_to_y) != 2 || yl != 2 {
 			t.Errorf("BFS expected shortest length path to y over 2 nodes, got %d and %d", len(path_to_y), yl)
 		}

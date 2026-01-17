@@ -12,26 +12,30 @@ type Queue[K comparable] []Node[K]
 // through a graph
 type Path[K comparable] []Node[K]
 
+// return types for path finding
+type Distances[K comparable] map[Node[K]]float64
+type Paths[K comparable] map[Node[K]]Node[K]
+
 // implement a breadth-first search from a start node
 // to a destination node. returns the path, and its length
-func (g *graphData[K]) BFS(start, target Node[K]) (Path[K], int) {
-	// if we're already there...
-	if start == target {
-		return Path[K]{target}, 1
-	}
-
+func (g *graphData[K]) BFS(start Node[K]) (Distances[K], Paths[K]) {
 	// create a queue
 	queue := make(Queue[K], 1)
 	// create a map to track which nodes have been explored
 	visited := make(map[Node[K]]bool)
 
+	// outputs
+	distances := make(Distances[K])
+	previous := make(Paths[K])
+
 	// mark the starting node as explored
 	visited[start] = true
+	// distance for start
+	distances[start] = 0
+	// no parent for start
+	previous[start] = start
 	// seed the queue
 	queue[0] = start
-
-	// initialize the path by keeping track of the prior step to each node
-	previous := make(map[Node[K]]Node[K])
 
 	// process while queue isn't empty
 	for len(queue) > 0 {
@@ -39,25 +43,34 @@ func (g *graphData[K]) BFS(start, target Node[K]) (Path[K], int) {
 		current := queue[0]
 		queue = queue[1:]
 
-		// check if we're at the target
-		if current == target {
-			break
-		}
 		// go through all the possible neighbors of the current node
 		for neighbor := range g.Adjacencies[current] {
 			// check if we've already been at this neighbor
 			if _, explored := visited[neighbor]; !explored {
 				visited[neighbor] = true
 				previous[neighbor] = current
+				distances[neighbor] = distances[current] + 1.0
 				queue = append(queue, neighbor)
 			}
 		}
 	}
 
+	return distances, previous
+}
+
+func (g *graphData[K]) BFSTo(start, target Node[K]) (Path[K], int, float64) {
+	// are we already there?
+	if start == target {
+		return Path[K]{start}, 1, 0.0
+	}
+
+	// run pathn finding
+	distances, previous := g.BFS(start)
+
 	// check if the target could in fact be reached
 	if _, ok := previous[target]; !ok {
 		// no, can't get to it, return empty path and zero length
-		return Path[K]{}, 0
+		return Path[K]{}, 0, math.Inf(1)
 	}
 
 	// build the path from parent relationships
@@ -74,11 +87,8 @@ func (g *graphData[K]) BFS(start, target Node[K]) (Path[K], int) {
 	slices.Reverse(path)
 
 	// return the path and its length
-	return path, len(path)
+	return path, len(path), distances[target]
 }
-
-type Distances[K comparable] map[Node[K]]float64
-type Paths[K comparable] map[Node[K]]Node[K]
 
 // calculate the shortest path from a given start to
 // all other nodes. return the distances and previous

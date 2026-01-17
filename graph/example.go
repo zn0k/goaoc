@@ -99,7 +99,7 @@ func main() {
 	g, s, t := readLines("input.txt", ds)
 
 	// run a BFS
-	path, length := g.BFS(s, t)
+	path, length, _ := g.BFSTo(s, t)
 	fmt.Printf("path=%v, length=%d\n", path, length)
 
 	// run dijkstra
